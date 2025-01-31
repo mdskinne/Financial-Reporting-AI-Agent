@@ -15,7 +15,7 @@ LANGSMITH_PROJECT="pr-rundown-waiter-11"
 from langchain_openai import ChatOpenAI
 
 # %%
-llm = ChatOpenAI(api_key=OPENAI_API_KEY)
+llm = ChatOpenAI(api_key=os.environ["OPENAI_API_KEY"])
 print(llm.invoke("Hello, world!"))
 
 # %%
@@ -162,3 +162,102 @@ formatted_response = format_response(response)
 print(formatted_response)
 
 # %%
+from dash import Dash, html, dcc, Input, Output, State
+import dash_bootstrap_components as dbc
+
+# Initialize the Dash app
+app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+
+# Define the layout of the app
+app.layout = dbc.Container(
+    [
+        dbc.Row(
+            dbc.Col(
+                html.H1("Financial Analysis Assistant", className="text-center mt-4")
+            )
+        ),
+        dbc.Row(
+            dbc.Col(
+                html.P(
+                    "Ask any financial analysis questions about balance sheets, income statements, or cash flows.",
+                    className="text-center",
+                )
+            )
+        ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    dcc.Input(
+                        id="query-input",
+                        type="text",
+                        placeholder="Enter your query here...",
+                        className="form-control",
+                    ),
+                    width=10,
+                ),
+                dbc.Col(
+                    dbc.Button(
+                        "Submit", id="submit-button", color="primary", className="px-4"
+                    ),
+                    width=2,
+                ),
+            ],
+            className="mb-3",
+        ),
+        dbc.Row(
+            dbc.Col(
+                dcc.Loading(
+                    id="loading",
+                    type="circle",
+                    children=html.Div(id="response-output", className="mt-4"),
+                )
+            )
+        ),
+    ],
+    fluid=True,
+)
+
+# Define callback to handle query submission and response
+@app.callback(
+    Output("response-output", "children"),
+    [Input("submit-button", "n_clicks")],
+    [State("query-input", "value")],
+)
+def handle_query(n_clicks, query):
+    if not n_clicks or not query:
+        return html.P("Please enter a query to get started.", className="text-warning")
+
+    try:
+        # Process the query using the agent
+        response = agent_executor.invoke({"input": query})
+
+        # Clean the response
+        cleaned_response = re.sub(r"\\text\{(.*?)\}", r"\1", response["output"])
+
+        # Return the response
+        return html.Div(
+            [
+                html.H5("Response:", className="mt-3"),
+                html.P(cleaned_response, className="text-success"),
+            ]
+        )
+    except Exception as e:
+        return html.Div(
+            [
+                html.H5("Error:", className="mt-3 text-danger"),
+                html.P(str(e), className="text-danger"),
+            ]
+        )
+
+
+import webbrowser
+
+if __name__ == "__main__":
+    # Specify the URL where the Dash app will run
+    app_url = "http://127.0.0.1:8050"
+    
+    # Open the app in the default web browser
+    webbrowser.open_new(app_url)
+    
+    # Run the Dash app
+    app.run_server(debug=True, use_reloader=False)
